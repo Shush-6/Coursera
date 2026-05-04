@@ -3,7 +3,7 @@ const  userRouter  = require("./routes/user");
 const  courseRoutes  = require("./routes/course");
 const adminRoutes = require("./routes/admin");
 const app = express ();
-
+app.use(express.json());
 app.use("/user", userRouter);
 app.use("/course",courseRoutes);
 app.use("/admin",adminRoutes);

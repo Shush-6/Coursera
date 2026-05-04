@@ -1,6 +1,8 @@
+require("dotenv").config();
 const mongoose = require("mongoose");
-mongoose.connect("mongodb+srv://Coursera:a1pP56LtBzlDSAVm@cluster0.zmfhw1z.mongodb.net/coursera-app")
-console.log("connected to");
+mongoose.connect(process.env.DATABASE_URL)
+.then(() => console.log("DB Connected"))
+.catch(err => console.log("DB Error:", err));
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.Types.ObjectId;
 const userSchema = new Schema({

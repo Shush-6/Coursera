@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const adminRoutes = Router();
 const { adminModel } = require("../db");
+//bcrypt,
 adminRoutes.post("/signup", (req,res)=>{
     res.json({
         message: "successfully reached"
