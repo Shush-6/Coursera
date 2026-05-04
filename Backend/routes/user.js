@@ -1,6 +1,8 @@
 const { Router } = require("express");
 const { userModel } = require("../db");
-const userRouter = Router();
+const userRouter = Router()
+const jwt = require("jsonwebtoken");
+const JWT_USER_PASSWORD = "aladid123"
 
 userRouter.post("/signup", async function(req, res){
     const { email, password, firstName, lastName } = req.body;// adding zod validation is remaining
@@ -16,10 +18,27 @@ userRouter.post("/signup", async function(req, res){
         message: "signup succedded"
     })
 })
-userRouter.post("/signin",function(req, res){
+userRouter.post("/signin", async function(req, res){
+    const { email, password } = req.body;
+    //to do for u: hashed password needed 
+    const user = await userModel.find({
+        email:email,
+        password:password
+    });
+    if(user){
+        const token = jwt.sign({
+            id: user.id
+        },JWT_USER_PASSWORD)
+    
     res.json({
-        message: "signup endpoint"
+        token: token
     })
+}
+else {
+    req.statusCode(403).json({
+        message: "incorrect credentials"
+    })
+}
 })
 userRouter.get("/purchases",function(req, res){
     res.json({
