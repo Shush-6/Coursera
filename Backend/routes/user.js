@@ -2,8 +2,7 @@ const { Router } = require("express");
 const { userModel } = require("../db");
 const userRouter = Router()
 const jwt = require("jsonwebtoken");
-const JWT_USER_PASSWORD = "aladid123"
-
+const { JWT_USER_PASSWORD } = require("../config");
 userRouter.post("/signup", async function(req, res){
     const { email, password, firstName, lastName } = req.body;// adding zod validation is remaining
     // hash the password
