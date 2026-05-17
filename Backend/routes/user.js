@@ -20,7 +20,7 @@ userRouter.post("/signup", async function(req, res){
 userRouter.post("/signin", async function(req, res){
     const { email, password } = req.body;
     //to do for u: hashed password needed 
-    const user = await userModel.find({
+    const user = await userModel.findOne({
         email:email,
         password:password
     });
@@ -34,7 +34,7 @@ userRouter.post("/signin", async function(req, res){
     })
 }
 else {
-    req.statusCode(403).json({
+    res.status(403).json({
         message: "incorrect credentials"
     })
 }
