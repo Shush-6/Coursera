@@ -5,7 +5,8 @@ const jwt = require("jsonwebtoken");
 const { JWT_ADMIN_PASSWORD } = require("../config");
 const { adminMiddleware } = require("../middleware/admin");
 const { z } = require("zod");
-
+const bcrypt = require("bcrypt");
+                            
 const signupSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
@@ -23,103 +24,143 @@ const courseSchema = z.object({
     firstName: z.string(),
     lastName: z.string()
 })
-adminRoutes.post("/signup",async function(req,res){
-    const {email, password, firstName, lastName } = req.body;
-    const parsedData = signupSchema.safeParse({ email, password, firstName, lastName });
-    if(!parsedData.success){
-        return res.status(400).json({
-            message: "Invalid data"
-        })
-    }
-    const user = await adminModel.findOne({
-        email: email,
-        password: password
-    });
-    if(user){
-        return res.status(403).json({
-            message: "user already exists"
-        })
-    }
-    await adminModel.create({
-        email: email,
-        password: password,
-        firstName: firstName,
-        lastName: lastName
-    })
-    const token = jwt.sign({
-        id : admin._id
-    }, JWT_ADMIN_PASSWORD)
-    res.json({
-        token: token
-    })
-})
-adminRoutes.post("/signin", async function(req,res){
-    const { email, password } = req.body;
-    const parsedData = signinSchema.safeParse({ email, password });
-    if(!parsedData.success){
-        return res.status(400).json({
-            message: "Invalid data"
-        })
-    }
-    const user = await adminModel.findOne({
-        email: email,
-        password: password
-    });
-    if(user){
+adminRoutes.post("/signup", async function(req,res){
+    try {
+        const {email, password, firstName, lastName } = req.body;
+        const parsedData = signupSchema.safeParse({ email, password, firstName, lastName });
+        if(!parsedData.success){
+            return res.status(400).json({
+                message: "Invalid data"
+            });
+        }
+        const user = await adminModel.findOne({
+            email: email
+        });
+        if(user){
+            return res.status(403).json({
+                message: "user already exists"
+            });
+        }
+        const hashedpassword = await bcrypt.hash(password, 5);
+        const admin = await adminModel.create({
+            email: email,
+            password: hashedpassword,
+            firstName: firstName,
+            lastName: lastName
+        });
         const token = jwt.sign({
-            id : user._id
-        }, JWT_ADMIN_PASSWORD)
+            id : admin._id
+        }, JWT_ADMIN_PASSWORD);
         res.json({
-            token : token
-        })
+            token: token
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "internal server error",
+            error: error.message
+        });
     }
-    else{
-        req.status(403).json({
-        message: "incorrect credentials"
-    })
+});
+
+adminRoutes.post("/signin", async function(req,res){
+    try {
+        const { email, password } = req.body;
+        const parsedData = signinSchema.safeParse({ email, password });
+        if(!parsedData.success){
+            return res.status(400).json({
+                message: "Invalid data"
+            });
+        }
+        const user = await adminModel.findOne({
+            email: email
+        });
+        if(user){
+            const isPasswordMatch = await bcrypt.compare(password, user.password);
+            if (isPasswordMatch) {
+                const token = jwt.sign({
+                    id : user._id
+                }, JWT_ADMIN_PASSWORD);
+                return res.json({
+                    token : token
+                });
+            }
+        }
+        res.status(403).json({
+            message: "incorrect credentials"
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "internal server error",
+            error: error.message
+        });
     }
-})
-adminRoutes.post("/course",adminMiddleware, async function(req,res){
-    const adminId = req.adminId;
-    const { title, description, price, firstName, lastName } = req.body;
-    const parsedData = courseSchema.safeParse({ title, description, price, firstName, lastName });
-    if(!parsedData.success){
-        return res.status(400).json({
-            message: "Invalid data"
-        })
+});
+
+adminRoutes.post("/course", adminMiddleware, async function(req,res){
+    try {
+        const adminId = req.adminId;
+        const { title, description, price, firstName, lastName } = req.body;
+        const parsedData = courseSchema.safeParse({ title, description, price, firstName, lastName });
+        if(!parsedData.success){
+            return res.status(400).json({
+                message: "Invalid data"
+            });
+        }
+        const course = await courseModel.create({
+            title : title,
+            description: description,
+            price: price,
+            firstName: firstName,
+            lastName: lastName,
+            creatorId: adminId
+        });
+        res.json({
+            message: "course created",
+            courseId: course._id
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "internal server error",
+            error: error.message
+        });
     }
-    const course = await courseModel.create({
-        title : title,
-        description: description,
-        price: price,
-        firstName: firstName,
-        lastName: lastName
-    })
-    res.json({
-        message: "course created",
-        courseId: course._id
-    })
-})
+});
+
 adminRoutes.put("/course/purchase", adminMiddleware, async function(req,res){
-     const adminId = req.userId;
-    const { title, description, price, firstName, lastName, courseId } = req.body;
-    const course = await courseModel.updateOne({
-        _id: courseId,
-        creatorId: adminId
-    },{
-        title : title,
-        description: description,
-        price: price,
-        firstName: firstName,
-        lastName: lastName
-    })
-    res.json({
-        message: "course updated"
-    })
-})
+    try {
+        const adminId = req.adminId;
+        const { title, description, price, firstName, lastName, courseId } = req.body;
+        const course = await courseModel.updateOne({
+            _id: courseId,
+            creatorId: adminId
+        },{
+            title : title,
+            description: description,
+            price: price,
+            firstName: firstName,
+            lastName: lastName
+        });
+        res.json({
+            message: "course updated"
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "internal server error",
+            error: error.message
+        });
+    }
+});
+
 adminRoutes.get("/course/bulk", (req,res)=>{
-    res.json({
-        message: "successfully reached"
-    })
-})
+    try {
+        res.json({
+            message: "successfully reached"
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "internal server error",
+            error: error.message
+        });
+    }
+});
 module.exports = adminRoutes;
