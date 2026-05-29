@@ -151,10 +151,14 @@ adminRoutes.put("/course/purchase", adminMiddleware, async function(req,res){
     }
 });
 
-adminRoutes.get("/course/bulk", (req,res)=>{
+adminRoutes.get("/course/bulk", adminMiddleware, async (req,res)=>{
     try {
+        const adminId = req.adminId;
+        const courses = await courseModel.find({
+            creatorId: adminId
+        });
         res.json({
-            message: "successfully reached"
+            courses: courses
         });
     } catch (error) {
         res.status(500).json({
