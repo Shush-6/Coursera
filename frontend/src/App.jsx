@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { signupUser } from "./api/auth";
 
 const courses = [
   {
@@ -258,6 +259,44 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const handleSignupSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signupUser(email, password, firstName, lastName);
+      setSuccess("Account created successfully! You can now log in.");
+      setEmail("");
+      setPassword("");
+      setFirstName("");
+      setLastName("");
+      setTimeout(() => {
+        setIsSignupOpen(false);
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      setError(err.message || "Something went wrong during signup. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filtered = courses.filter((c) => {
     const matchCat = activeCategory === "All" || c.category === activeCategory;
     const matchSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -302,7 +341,10 @@ export default function App() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
             <button style={{ background: "none", border: "none", fontSize: 14, fontWeight: 600, color: "#374151", cursor: "pointer", padding: "8px 12px" }}>Log in</button>
-            <button style={{ background: "#0056D2", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            <button 
+              onClick={() => setIsSignupOpen(true)}
+              style={{ background: "#0056D2", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+            >
               Join for Free
             </button>
           </div>
@@ -332,7 +374,10 @@ export default function App() {
             <button style={{ background: "#fff", color: "#0056D2", border: "none", borderRadius: 12, padding: "14px 32px", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
               Explore Courses
             </button>
-            <button style={{ background: "transparent", color: "#fff", border: "2px solid rgba(255,255,255,0.4)", borderRadius: 12, padding: "14px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+            <button 
+              onClick={() => setIsSignupOpen(true)}
+              style={{ background: "transparent", color: "#fff", border: "2px solid rgba(255,255,255,0.4)", borderRadius: 12, padding: "14px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}
+            >
               Try for Free
             </button>
           </div>
@@ -418,7 +463,10 @@ export default function App() {
           <p style={{ fontSize: 17, color: "#9CA3AF", marginBottom: 36, lineHeight: 1.6 }}>
             7-day free trial on all courses. No credit card required. Cancel anytime.
           </p>
-          <button style={{ background: "#0056D2", color: "#fff", border: "none", borderRadius: 12, padding: "16px 40px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>
+          <button 
+            onClick={() => setIsSignupOpen(true)}
+            style={{ background: "#0056D2", color: "#fff", border: "none", borderRadius: 12, padding: "16px 40px", fontSize: 17, fontWeight: 800, cursor: "pointer" }}
+          >
             Get Started — It's Free
           </button>
         </div>
@@ -455,6 +503,228 @@ export default function App() {
           <p style={{ fontSize: 12, color: "#4B5563" }}>© 2026 Coursera Inc. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* Signup Modal */}
+      {isSignupOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(17, 24, 39, 0.6)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: 20,
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: 20,
+            padding: "40px 32px",
+            width: "100%",
+            maxWidth: 460,
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+            position: "relative",
+          }}>
+            <button 
+              onClick={() => {
+                setIsSignupOpen(false);
+                setError("");
+                setSuccess("");
+              }}
+              style={{
+                position: "absolute",
+                top: 20,
+                right: 20,
+                background: "none",
+                border: "none",
+                fontSize: 22,
+                cursor: "pointer",
+                color: "#9CA3AF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                transition: "background 0.2s, color 0.2s"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = "#1F2937"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#9CA3AF"; }}
+            >
+              ✕
+            </button>
+            
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{ display: "inline-flex", background: "#E8F1FF", borderRadius: 12, width: 48, height: 48, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0056D2" strokeWidth={2.5}><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
+              </div>
+              <h2 style={{ fontSize: 24, fontWeight: 900, color: "#111827", margin: "0 0 6px", letterSpacing: -0.5 }}>Create Your Account</h2>
+              <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>Start learning from top institutions today</p>
+            </div>
+
+            {error && (
+              <div style={{ 
+                background: "#FEF2F2", 
+                borderLeft: "4px solid #EF4444",
+                color: "#991B1B", 
+                padding: "12px 16px", 
+                borderRadius: 8, 
+                fontSize: 13, 
+                marginBottom: 20,
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div style={{ 
+                background: "#ECFDF5", 
+                borderLeft: "4px solid #10B981",
+                color: "#065F46", 
+                padding: "12px 16px", 
+                borderRadius: 8, 
+                fontSize: 13, 
+                marginBottom: 20,
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                {success}
+              </div>
+            )}
+
+            <form onSubmit={handleSignupSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <div style={{ display: "flex", gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>First Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="John"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "1.5px solid #E5E7EB",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+                    onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Last Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Doe"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "1.5px solid #E5E7EB",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+                    onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Email Address</label>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="john.doe@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    border: "1.5px solid #E5E7EB",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+                  onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Password</label>
+                <input 
+                  type="password" 
+                  required
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    border: "1.5px solid #E5E7EB",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+                  onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  background: "#0056D2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "14px",
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.8 : 1,
+                  transition: "background 0.2s",
+                  boxShadow: "0 4px 12px rgba(0, 86, 210, 0.24)",
+                  marginTop: 8
+                }}
+                onMouseEnter={(e) => { if(!loading) e.currentTarget.style.background = "#0041a3"; }}
+                onMouseLeave={(e) => { if(!loading) e.currentTarget.style.background = "#0056D2"; }}
+              >
+                {loading ? "Creating Account..." : "Join for Free"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

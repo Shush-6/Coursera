@@ -20,8 +20,6 @@ const signinSchema = z.object({
 userRouter.post("/signup", async function(req, res){
     try {
         const { email, password, firstName, lastName } = req.body;
-        // hash the password
-        //put inside try catch block
         const parsedData = userSchema.safeParse({ email, password, firstName, lastName });
         if(!parsedData.success){
             return res.status(400).json({
@@ -49,7 +47,6 @@ userRouter.post("/signup", async function(req, res){
 userRouter.post("/signin", async function(req, res){
     try {
         const { email, password } = req.body;
-        //to do for u: hashed password needed 
         const parsedData = signinSchema.safeParse({ email, password });
         if(!parsedData.success){
             return res.status(400).json({
