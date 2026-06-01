@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { signupUser } from "./api/auth";
 import { signinUser } from "./api/auth";
+import { signupAdmin } from "./api/auth";
+import { signinAdmin } from "./api/auth";
 
 const courses = [
   {
@@ -265,6 +267,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -281,12 +284,17 @@ export default function App() {
 
     setLoading(true);
     try {
-      await signupUser(email, password, firstName, lastName);
+      if (role === "Admin") {
+        await signupAdmin(email, password, firstName, lastName); // → /admin/signup
+      } else {
+        await signupUser(email, password, firstName, lastName);  // → /user/signup
+      }
       setSuccess("Account created successfully! You can now log in.");
       setEmail("");
       setPassword("");
       setFirstName("");
       setLastName("");
+      setRole("User"); // ✅ reset to default, not ""
       setTimeout(() => {
         setIsSignupOpen(false);
         setSuccess("");
@@ -298,9 +306,11 @@ export default function App() {
     }
   };
 
+
 const [isSigninOpen, setIsSigninOpen] = useState(false);
 const [signinEmail, setSigninEmail] = useState("");
 const [signinPassword, setSigninPassword] = useState("");
+const [signinRole, setSigninRole] = useState("");
 const [signinLoading, setSigninLoading] = useState(false);
 const [signinError, setSigninError] = useState("");
 
@@ -309,13 +319,17 @@ const handleSigninSubmit = async (e) => {
     setSigninError("");
     setSuccess("");
 
-
     setSigninLoading(true);
     try {
-      await signinUser(signinEmail, signinPassword);
+      if (signinRole === "Admin") {
+        await signinAdmin(signinEmail, signinPassword); // → /admin/signin
+      } else {
+        await signinUser(signinEmail, signinPassword);  // → /user/signin
+      }
       setSuccess("Login successful!");
       setSigninEmail("");
       setSigninPassword("");
+      setSigninRole("User"); // ✅ reset to default, not ""
       setTimeout(() => {
         setIsSigninOpen(false);
         setSuccess("");
@@ -728,7 +742,42 @@ const handleSigninSubmit = async (e) => {
                   onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
                 />
               </div>
+                 <div>
+  <label
+    style={{
+      display: "block",
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#4B5563",
+      marginBottom: 6,
+      textTransform: "uppercase",
+      letterSpacing: 0.5
+    }}
+  >
+    Login As
+  </label>
 
+  <select
+    value={role}
+    onChange={(e) => setRole(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "12px 16px",
+      border: "1.5px solid #E5E7EB",
+      borderRadius: 10,
+      fontSize: 14,
+      outline: "none",
+      boxSizing: "border-box",
+      background: "#fff",
+      transition: "border-color 0.2s"
+    }}
+    onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+    onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+  >
+    <option value="User">User</option>
+    <option value="Admin">Admin</option>
+  </select>
+</div>
               <button 
                 type="submit" 
                 disabled={loading}
@@ -902,7 +951,42 @@ const handleSigninSubmit = async (e) => {
                   onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
                 />
               </div>
+<div>
+  <label
+    style={{
+      display: "block",
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#4B5563",
+      marginBottom: 6,
+      textTransform: "uppercase",
+      letterSpacing: 0.5
+    }}
+  >
+    Login As
+  </label>
 
+  <select
+    value={signinRole}
+    onChange={(e) => setSigninRole(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "12px 16px",
+      border: "1.5px solid #E5E7EB",
+      borderRadius: 10,
+      fontSize: 14,
+      outline: "none",
+      boxSizing: "border-box",
+      background: "#fff",
+      transition: "border-color 0.2s"
+    }}
+    onFocus={(e) => e.target.style.borderColor = "#0056D2"}
+    onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+  >
+    <option value="User">User</option>
+    <option value="Admin">Admin</option>
+  </select>
+</div>
               <button 
                 type="submit" 
                 disabled={signinLoading}

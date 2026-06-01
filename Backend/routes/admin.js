@@ -11,11 +11,13 @@ const signupSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
     firstName: z.string(),
-    lastName: z.string()
+    lastName: z.string(),
+    role: z.literal("Admin").default("Admin")
 })
 const signinSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(6)
+    password: z.string().min(6),
+    role: z.literal("Admin").default("Admin")
 })
 const courseSchema = z.object({
     title: z.string(),
@@ -26,8 +28,8 @@ const courseSchema = z.object({
 })
 adminRoutes.post("/signup", async function(req,res){
     try {
-        const {email, password, firstName, lastName } = req.body;
-        const parsedData = signupSchema.safeParse({ email, password, firstName, lastName });
+        const {email, password, firstName, lastName, role } = req.body;
+        const parsedData = signupSchema.safeParse({ email, password, firstName, lastName, role });
         if(!parsedData.success){
             return res.status(400).json({
                 message: "Invalid data"
@@ -46,10 +48,12 @@ adminRoutes.post("/signup", async function(req,res){
             email: email,
             password: hashedpassword,
             firstName: firstName,
-            lastName: lastName
+            lastName: lastName,
+            role: "Admin"
         });
         const token = jwt.sign({
-            id : admin._id
+            id : admin.id,
+            role: role
         }, JWT_ADMIN_PASSWORD);
         res.json({
             token: token
@@ -64,8 +68,8 @@ adminRoutes.post("/signup", async function(req,res){
 
 adminRoutes.post("/signin", async function(req,res){
     try {
-        const { email, password } = req.body;
-        const parsedData = signinSchema.safeParse({ email, password });
+        const { email, password, role } = req.body;
+        const parsedData = signinSchema.safeParse({ email, password, role });
         if(!parsedData.success){
             return res.status(400).json({
                 message: "Invalid data"
@@ -78,7 +82,8 @@ adminRoutes.post("/signin", async function(req,res){
             const isPasswordMatch = await bcrypt.compare(password, user.password);
             if (isPasswordMatch) {
                 const token = jwt.sign({
-                    id : user._id
+                    id : user.id,
+                    role: role
                 }, JWT_ADMIN_PASSWORD);
                 return res.json({
                     token : token

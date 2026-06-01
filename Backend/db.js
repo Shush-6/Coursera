@@ -10,12 +10,14 @@ const userSchema = new Schema({
     password: String,
     firstName: String,
     lastName: String,
+    role: { type: String, default: "User" } 
 })
 const adminSchema = new Schema({
     email: { type: String, unique: true},
     password: String,
     firstName: String,
     lastName: String,
+    role: { type: String, default: "Admin" }
 })
 const courseSchema = new Schema({
     title: String,

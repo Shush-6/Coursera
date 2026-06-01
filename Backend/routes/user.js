@@ -11,16 +11,18 @@ const userSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
     firstName: z.string(),
-    lastName: z.string()
+    lastName: z.string(),
+    role: z.literal("User").default("User")
 })
 const signinSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(6)
+    password: z.string().min(6),
+    role: z.literal("User").default("User")
 })
 userRouter.post("/signup", async function(req, res){
     try {
-        const { email, password, firstName, lastName } = req.body;
-        const parsedData = userSchema.safeParse({ email, password, firstName, lastName });
+        const { email, password, firstName, lastName, role } = req.body;
+        const parsedData = userSchema.safeParse({ email, password, firstName, lastName, role });
         if(!parsedData.success){
             return res.status(400).json({
                 message: "Invalid data"
@@ -31,7 +33,8 @@ userRouter.post("/signup", async function(req, res){
             email: email,
             password: hashedpassword,
             firstName: firstName,
-            lastName: lastName
+            lastName: lastName,
+            role: "User"
         });
         res.json({
             message: "signup succedded"
@@ -46,8 +49,8 @@ userRouter.post("/signup", async function(req, res){
 
 userRouter.post("/signin", async function(req, res){
     try {
-        const { email, password } = req.body;
-        const parsedData = signinSchema.safeParse({ email, password });
+        const { email, password, role } = req.body;
+        const parsedData = signinSchema.safeParse({ email, password, role });
         if(!parsedData.success){
             return res.status(400).json({
                 message: "Invalid data"
@@ -55,14 +58,15 @@ userRouter.post("/signin", async function(req, res){
         }
         const user = await userModel.findOne({
             email:email,
+            role: role
         });
         if(user){
             const isPasswordMatch = await bcrypt.compare(password, user.password);
             if (isPasswordMatch) {
                 const token = jwt.sign({
-                    id: user.id
-                },JWT_USER_PASSWORD)
-        
+                    id: user.id,
+                    role: role
+                },JWT_USER_PASSWORD)    
             res.json({
                 token: token
             });
