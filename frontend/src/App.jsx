@@ -259,6 +259,7 @@ function CourseCard({ course }) {
 }
 
 export default function App() {
+
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -306,7 +307,7 @@ export default function App() {
     }
   };
 
-
+const [loggedIn, setLoggedIn] = useState(false);
 const [isSigninOpen, setIsSigninOpen] = useState(false);
 const [signinEmail, setSigninEmail] = useState("");
 const [signinPassword, setSigninPassword] = useState("");
@@ -334,6 +335,7 @@ const handleSigninSubmit = async (e) => {
         setIsSigninOpen(false);
         setSuccess("");
       }, 3000);
+      setLoggedIn(false);
     } catch (err) {
       setSigninError(err.message || "Something went wrong during signin. Please try again.");
     } finally {
@@ -348,7 +350,29 @@ const handleSigninSubmit = async (e) => {
       c.instructor.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCat && matchSearch;
   });
+if (loggedIn) {
 
+  const user = JSON.parse(
+    localStorage.getItem("user")
+  );
+
+  return (
+
+    <div style={{ padding: 40 }}>
+
+      <h1>
+        Welcome
+      </h1>
+
+      <h2>
+        u are logged in
+      </h2>
+
+      
+
+    </div>
+  );
+}
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", background: "#F9FAFB", minHeight: "100vh" }}>
 

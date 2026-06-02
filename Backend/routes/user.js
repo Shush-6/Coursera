@@ -41,7 +41,7 @@ userRouter.post("/signup", async function(req, res){
         });
     } catch(e) {
         return res.status(500).json({
-            message: "internal server error",
+            message: "user already exist",
             error: e.message
         });
     }
@@ -60,6 +60,11 @@ userRouter.post("/signin", async function(req, res){
             email:email,
             role: role
         });
+        if(!user){
+            return res.status(403).json({
+                message: "Sign up first!"
+            });
+        }
         if(user){
             const isPasswordMatch = await bcrypt.compare(password, user.password);
             if (isPasswordMatch) {

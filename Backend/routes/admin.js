@@ -60,7 +60,7 @@ adminRoutes.post("/signup", async function(req,res){
         });
     } catch (error) {
         res.status(500).json({
-            message: "internal server error",
+            message: "user already exist",
             error: error.message
         });
     }
