@@ -257,7 +257,7 @@ function CourseCard({ course }) {
     </div>
   );
 }
-
+localStorage.clear();
 export default function App() {
 
   const [activeCategory, setActiveCategory] = useState("All");
@@ -308,6 +308,10 @@ export default function App() {
   };
 
 const [loggedIn, setLoggedIn] = useState(false);
+const token = localStorage.getItem("token");
+if (token && !loggedIn) {
+  setLoggedIn(true);
+}
 const [isSigninOpen, setIsSigninOpen] = useState(false);
 const [signinEmail, setSigninEmail] = useState("");
 const [signinPassword, setSigninPassword] = useState("");
@@ -335,7 +339,7 @@ const handleSigninSubmit = async (e) => {
         setIsSigninOpen(false);
         setSuccess("");
       }, 3000);
-      setLoggedIn(false);
+      setLoggedIn(true);
     } catch (err) {
       setSigninError(err.message || "Something went wrong during signin. Please try again.");
     } finally {
@@ -351,10 +355,6 @@ const handleSigninSubmit = async (e) => {
     return matchCat && matchSearch;
   });
 if (loggedIn) {
-
-  const user = JSON.parse(
-    localStorage.getItem("user")
-  );
 
   return (
 
