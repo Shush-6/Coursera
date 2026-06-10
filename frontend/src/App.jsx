@@ -1,8 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signupUser } from "./api/auth";
 import { signinUser } from "./api/auth";
 import { signupAdmin } from "./api/auth";
 import { signinAdmin } from "./api/auth";
+import { 
+  getCourses, 
+  purchaseCourse, 
+  getPurchasedCourses, 
+  getAdminCourses, 
+  createCourse, 
+  updateCourse 
+} from "./api/course";
 
 const courses = [
   {
@@ -257,7 +265,6 @@ function CourseCard({ course }) {
     </div>
   );
 }
-localStorage.clear();
 export default function App() {
 
   const [activeCategory, setActiveCategory] = useState("All");
@@ -268,7 +275,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState("User");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -286,16 +293,16 @@ export default function App() {
     setLoading(true);
     try {
       if (role === "Admin") {
-        await signupAdmin(email, password, firstName, lastName); // → /admin/signup
+        await signupAdmin(email, password, firstName, lastName, "Admin"); // → /admin/signup
       } else {
-        await signupUser(email, password, firstName, lastName);  // → /user/signup
+        await signupUser(email, password, firstName, lastName, "User");  // → /user/signup
       }
       setSuccess("Account created successfully! You can now log in.");
       setEmail("");
       setPassword("");
       setFirstName("");
       setLastName("");
-      setRole("User"); // ✅ reset to default, not ""
+      setRole("User");
       setTimeout(() => {
         setIsSignupOpen(false);
         setSuccess("");
@@ -307,39 +314,49 @@ export default function App() {
     }
   };
 
-const [loggedIn, setLoggedIn] = useState(false);
-const token = localStorage.getItem("token");
-if (token && !loggedIn) {
-  setLoggedIn(true);
-}
-const [isSigninOpen, setIsSigninOpen] = useState(false);
-const [signinEmail, setSigninEmail] = useState("");
-const [signinPassword, setSigninPassword] = useState("");
-const [signinRole, setSigninRole] = useState("");
-const [signinLoading, setSigninLoading] = useState(false);
-const [signinError, setSigninError] = useState("");
+  const [loggedIn, setLoggedIn] = useState(() => !!localStorage.getItem("token"));
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem("user");
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
 
-const handleSigninSubmit = async (e) => {
+  const [isSigninOpen, setIsSigninOpen] = useState(false);
+  const [signinEmail, setSigninEmail] = useState("");
+  const [signinPassword, setSigninPassword] = useState("");
+  const [signinRole, setSigninRole] = useState("User");
+  const [signinLoading, setSigninLoading] = useState(false);
+  const [signinError, setSigninError] = useState("");
+
+  const handleSigninSubmit = async (e) => {
     e.preventDefault();
     setSigninError("");
     setSuccess("");
 
     setSigninLoading(true);
     try {
+      let res;
       if (signinRole === "Admin") {
-        await signinAdmin(signinEmail, signinPassword); // → /admin/signin
+        res = await signinAdmin(signinEmail, signinPassword, "Admin"); // → /admin/signin
       } else {
-        await signinUser(signinEmail, signinPassword);  // → /user/signin
+        res = await signinUser(signinEmail, signinPassword, "User");  // → /user/signin
       }
       setSuccess("Login successful!");
       setSigninEmail("");
       setSigninPassword("");
-      setSigninRole("User"); // ✅ reset to default, not ""
+      setSigninRole("User");
+      
+      // Update states
+      setUser(res.user);
+      setLoggedIn(true);
+
       setTimeout(() => {
         setIsSigninOpen(false);
         setSuccess("");
-      }, 3000);
-      setLoggedIn(true);
+      }, 1500);
     } catch (err) {
       setSigninError(err.message || "Something went wrong during signin. Please try again.");
     } finally {
@@ -347,32 +364,641 @@ const handleSigninSubmit = async (e) => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    setLoggedIn(false);
+    setUser(null);
+  };
 
+  // Dashboard States
+  const [studentTab, setStudentTab] = useState("explore"); // "explore" or "purchases"
+  const [apiCourses, setApiCourses] = useState([]);
+  const [purchasedCourses, setPurchasedCourses] = useState([]);
+  const [adminCourses, setAdminCourses] = useState([]);
+  
+  // Dashboard Loading & Error
+  const [dashLoading, setDashLoading] = useState(false);
+  const [dashError, setDashError] = useState("");
+  const [dashSuccess, setDashSuccess] = useState("");
+
+  // Create/Edit Course Forms State
+  const [courseForm, setCourseForm] = useState({
+    id: "",
+    title: "",
+    description: "",
+    price: "",
+    firstName: "",
+    lastName: ""
+  });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (loggedIn && user) {
+      loadDashboardData();
+    }
+  }, [loggedIn, user]);
+
+  const loadDashboardData = async () => {
+    setDashLoading(true);
+    setDashError("");
+    try {
+      if (user.role === "Admin") {
+        const data = await getAdminCourses();
+        setAdminCourses(data.courses || []);
+      } else {
+        const all = await getCourses();
+        setApiCourses(all.courses || []);
+        const pur = await getPurchasedCourses();
+        setPurchasedCourses(pur.courses || []);
+      }
+    } catch (err) {
+      setDashError(err.message || "Failed to load dashboard data.");
+    } finally {
+      setDashLoading(false);
+    }
+  };
+
+  const handlePurchase = async (courseId) => {
+    setDashError("");
+    setDashSuccess("");
+    try {
+      await purchaseCourse(courseId);
+      setDashSuccess("Course purchased successfully!");
+      // Reload purchased courses
+      const pur = await getPurchasedCourses();
+      setPurchasedCourses(pur.courses || []);
+      // Auto switch to My Purchases tab after a brief delay
+      setTimeout(() => {
+        setStudentTab("purchases");
+        setDashSuccess("");
+      }, 1500);
+    } catch (err) {
+      setDashError(err.message || "Failed to purchase course.");
+    }
+  };
+
+  const handleCourseSubmit = async (e) => {
+    e.preventDefault();
+    setDashError("");
+    setDashSuccess("");
+    try {
+      const payload = {
+        title: courseForm.title,
+        description: courseForm.description,
+        price: parseFloat(courseForm.price),
+        firstName: courseForm.firstName || user.firstName,
+        lastName: courseForm.lastName || user.lastName
+      };
+      
+      if (isEditMode) {
+        payload.courseId = courseForm.id;
+        await updateCourse(payload);
+        setDashSuccess("Course updated successfully!");
+      } else {
+        await createCourse(payload);
+        setDashSuccess("Course created successfully!");
+      }
+
+      // Reset form and reload admin courses
+      setCourseForm({ id: "", title: "", description: "", price: "", firstName: "", lastName: "" });
+      setIsFormOpen(false);
+      const data = await getAdminCourses();
+      setAdminCourses(data.courses || []);
+
+      setTimeout(() => {
+        setDashSuccess("");
+      }, 3000);
+    } catch (err) {
+      setDashError(err.message || "Failed to submit course.");
+    }
+  };
+
+  const startEditCourse = (course) => {
+    setIsEditMode(true);
+    setCourseForm({
+      id: course._id,
+      title: course.title,
+      description: course.description,
+      price: course.price.toString(),
+      firstName: course.firstName || user.firstName,
+      lastName: course.lastName || user.lastName
+    });
+    setIsFormOpen(true);
+  };
+
+  const startCreateCourse = () => {
+    setIsEditMode(false);
+    setCourseForm({
+      id: "",
+      title: "",
+      description: "",
+      price: "",
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || ""
+    });
+    setIsFormOpen(true);
+  };
   const filtered = courses.filter((c) => {
     const matchCat = activeCategory === "All" || c.category === activeCategory;
     const matchSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.instructor.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCat && matchSearch;
   });
-if (loggedIn) {
 
-  return (
+  if (loggedIn) {
+    const isStudent = user?.role === "User" || user?.role === "Student";
+    
+    return (
+      <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", background: "#F3F4F6", minHeight: "100vh" }}>
+        {/* Navigation Bar */}
+        <nav style={{ background: "#ffffff", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", height: 70, justifyContent: "space-between" }}>
+            
+            {/* Logo */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ background: "#0056D2", borderRadius: 10, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5}>
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                  <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                </svg>
+              </div>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#0056D2", letterSpacing: -0.5 }}>coursera</span>
+              <span style={{
+                background: isStudent ? "#EEF2F6" : "#FEF2F2",
+                color: isStudent ? "#0056D2" : "#DC2626",
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "3px 8px",
+                borderRadius: 6,
+                letterSpacing: 0.5,
+                textTransform: "uppercase"
+              }}>
+                {isStudent ? "Student Portal" : "Admin Console"}
+              </span>
+            </div>
 
-    <div style={{ padding: 40 }}>
+            {/* Navigation Tabs (Student Only) */}
+            {isStudent && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setStudentTab("explore")}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: studentTab === "explore" ? "#E8F1FF" : "transparent",
+                    color: studentTab === "explore" ? "#0056D2" : "#4B5563",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Explore Courses
+                </button>
+                <button
+                  onClick={() => setStudentTab("purchases")}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: studentTab === "purchases" ? "#E8F1FF" : "transparent",
+                    color: studentTab === "purchases" ? "#0056D2" : "#4B5563",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  My Purchases ({purchasedCourses.length})
+                </button>
+              </div>
+            )}
 
-      <h1>
-        Welcome
-      </h1>
+            {/* Profile & Logout */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1F2937" }}>
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>{user?.email}</div>
+              </div>
+              <button
+                onClick={handleLogout}
+                style={{
+                  background: "#F3F4F6",
+                  color: "#374151",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "background 0.2s, color 0.2s"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#E5E7EB"; e.currentTarget.style.color = "#111827"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = "#374151"; }}
+              >
+                Log Out
+              </button>
+            </div>
+            
+          </div>
+        </nav>
 
-      <h2>
-        u are logged in
-      </h2>
+        {/* Success/Error Toasts */}
+        <div style={{ maxWidth: 1200, margin: "16px auto 0", padding: "0 24px" }}>
+          {dashError && (
+            <div style={{ background: "#FEF2F2", borderLeft: "4px solid #EF4444", color: "#991B1B", padding: "12px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {dashError}
+            </div>
+          )}
+          {dashSuccess && (
+            <div style={{ background: "#ECFDF5", borderLeft: "4px solid #10B981", color: "#065F46", padding: "12px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              {dashSuccess}
+            </div>
+          )}
+        </div>
 
-      
+        {/* Dashboard Content */}
+        <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 48px" }}>
+          {dashLoading ? (
+            <div style={{ textAlign: "center", padding: "80px 0" }}>
+              <div style={{ border: "4px solid #f3f3f3", borderTop: "4px solid #0056D2", borderRadius: "50%", width: 40, height: 40, animation: "spin 1s linear infinite", margin: "0 auto 16px" }}></div>
+              <p style={{ color: "#6B7280", fontWeight: 600 }}>Loading dashboard data...</p>
+            </div>
+          ) : isStudent ? (
+            /* ==================== STUDENT DASHBOARD ==================== */
+            <div>
+              {/* Welcome Banner */}
+              <div style={{ background: "linear-gradient(135deg, #0056D2 0%, #003087 100%)", borderRadius: 20, padding: "40px 32px", color: "#ffffff", marginBottom: 32, boxShadow: "0 10px 25px rgba(0, 86, 210, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 24 }}>
+                <div>
+                  <h1 style={{ fontSize: 32, fontWeight: 900, margin: "0 0 8px", letterSpacing: -0.5 }}>Welcome Back, {user?.firstName}! 👋</h1>
+                  <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", margin: 0 }}>Ready to acquire your next skill? Keep up the learning momentum!</p>
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 12, padding: "16px 20px", textAlign: "center", minWidth: 120, backdropFilter: "blur(4px)" }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "#fff" }}>{purchasedCourses.length}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", fontWeight: 700, marginTop: 4 }}>Purchased</div>
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 12, padding: "16px 20px", textAlign: "center", minWidth: 120, backdropFilter: "blur(4px)" }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "#7DC4FF" }}>78%</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", fontWeight: 700, marginTop: 4 }}>Avg Progress</div>
+                  </div>
+                </div>
+              </div>
 
-    </div>
-  );
-}
+              {/* Tab Content */}
+              {studentTab === "explore" ? (
+                /* Explore Available Courses */
+                <div>
+                  <div style={{ marginBottom: 24 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: "0 0 6px" }}>Explore Available Courses</h2>
+                    <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>Expand your horizons with top-tier materials</p>
+                  </div>
+
+                  {apiCourses.length === 0 ? (
+                    <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: "64px 32px", textAlign: "center" }}>
+                      <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
+                      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1F2937", margin: "0 0 6px" }}>No Courses Found</h3>
+                      <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 24px" }}>There are no courses loaded in the catalog yet.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
+                      {apiCourses.map((c) => {
+                        const isEnrolled = purchasedCourses.some((p) => p._id === c._id);
+                        return (
+                          <div key={c._id} style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 2px 5px rgba(0,0,0,0.03)", transition: "transform 0.2s, box-shadow 0.2s" }} className="hover-card">
+                            <div style={{ background: "#E8F1FF", height: 120, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48 }}>
+                              🎓
+                            </div>
+                            <div style={{ padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
+                              <div style={{ display: "flex", gap: 6, marginBottom: 8, fontSize: 11, fontWeight: 600, color: "#0056D2", textTransform: "uppercase" }}>
+                                <span>Core Tech</span>
+                              </div>
+                              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: "0 0 8px", lineHeight: 1.4 }}>{c.title}</h3>
+                              <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 12px", flex: 1, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.description}</p>
+                              <div style={{ fontSize: 12, color: "#4B5563", marginBottom: 16, fontStyle: "italic" }}>
+                                By {c.firstName} {c.lastName}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", borderTop: "1px solid #F3F4F6", paddingTop: 14 }}>
+                                <span style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>₹{c.price.toLocaleString()}</span>
+                                <button
+                                  disabled={isEnrolled}
+                                  onClick={() => handlePurchase(c._id)}
+                                  style={{
+                                    background: isEnrolled ? "#10B981" : "#0056D2",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: 8,
+                                    padding: "8px 16px",
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    cursor: isEnrolled ? "default" : "pointer",
+                                    transition: "background 0.2s"
+                                  }}
+                                >
+                                  {isEnrolled ? "✓ Enrolled" : "Enroll Now"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* My Purchased Courses */
+                <div>
+                  <div style={{ marginBottom: 24 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: "0 0 6px" }}>My Enrolled Courses</h2>
+                    <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>Resume your learning journeys and check progress</p>
+                  </div>
+
+                  {purchasedCourses.length === 0 ? (
+                    <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: "64px 32px", textAlign: "center" }}>
+                      <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
+                      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1F2937", margin: "0 0 6px" }}>No Enrolled Courses</h3>
+                      <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 24px" }}>You have not enrolled in any courses yet.</p>
+                      <button
+                        onClick={() => setStudentTab("explore")}
+                        style={{ background: "#0056D2", color: "#fff", border: "none", borderRadius: 10, padding: "12px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Explore Catalog
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
+                      {purchasedCourses.map((c) => {
+                        // Generate a deterministic progress percentage
+                        const progress = (c.title.length * 7) % 61 + 30; // Between 30% and 90%
+                        return (
+                          <div key={c._id} style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 2px 5px rgba(0,0,0,0.03)" }}>
+                            <div style={{ background: "#E8F1FF", height: 120, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48, position: "relative" }}>
+                              📚
+                              <span style={{ position: "absolute", bottom: 10, right: 10, background: "#0056D2", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>Active</span>
+                            </div>
+                            <div style={{ padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
+                              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: "0 0 6px" }}>{c.title}</h3>
+                              <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px", fontStyle: "italic" }}>
+                                By {c.firstName} {c.lastName}
+                              </p>
+                              
+                              {/* Progress bar */}
+                              <div style={{ marginBottom: 20 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 600, color: "#4B5563", marginBottom: 6 }}>
+                                  <span>Progress</span>
+                                  <span>{progress}%</span>
+                                </div>
+                                <div style={{ height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden" }}>
+                                  <div style={{ width: `${progress}%`, height: "100%", background: "#0056D2", borderRadius: 3 }}></div>
+                                </div>
+                              </div>
+
+                              <button
+                                style={{
+                                  background: "#ffffff",
+                                  color: "#0056D2",
+                                  border: "1.5px solid #0056D2",
+                                  borderRadius: 8,
+                                  padding: "9px",
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  transition: "all 0.2s",
+                                  textAlign: "center"
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "#E8F1FF"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
+                              >
+                                Resume Learning
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ==================== ADMIN DASHBOARD ==================== */
+            <div>
+              {/* Admin Hero Header */}
+              <div style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)", borderRadius: 20, padding: "40px 32px", color: "#ffffff", marginBottom: 32, boxShadow: "0 10px 25px rgba(17, 24, 39, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 24 }}>
+                <div>
+                  <h1 style={{ fontSize: 32, fontWeight: 900, margin: "0 0 8px", letterSpacing: -0.5 }}>Instructor Console 🛠️</h1>
+                  <p style={{ fontSize: 16, color: "#9CA3AF", margin: 0 }}>Create, monitor, and configure your courses from one location.</p>
+                </div>
+                <button
+                  onClick={startCreateCourse}
+                  style={{
+                    background: "#0056D2",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "14px 28px",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0, 86, 210, 0.3)",
+                    transition: "background 0.2s"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#0041a3"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "#0056D2"; }}
+                >
+                  + Create New Course
+                </button>
+              </div>
+
+              {/* Admin Metrics Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24, marginBottom: 32 }}>
+                <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 24, boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Total Courses</div>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#111827" }}>{adminCourses.length}</div>
+                </div>
+                <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 24, boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Student Enrollees</div>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#10B981" }}>{(adminCourses.length * 14) || 0}</div>
+                </div>
+                <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 24, boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Estimated Revenue</div>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#3B82F6" }}>
+                    ₹{(adminCourses.reduce((sum, c) => sum + c.price, 0) * 14).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* My Created Courses List */}
+              <div>
+                <div style={{ marginBottom: 24 }}>
+                  <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: "0 0 6px" }}>Created Courses Manager</h2>
+                  <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>View, edit, and update the specifications of courses you created</p>
+                </div>
+
+                {adminCourses.length === 0 ? (
+                  <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", padding: "64px 32px", textAlign: "center" }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>🎨</div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1F2937", margin: "0 0 6px" }}>No Created Courses</h3>
+                    <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>You have not created any courses in this account yet.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 24 }}>
+                    {adminCourses.map((c) => (
+                      <div key={c._id} style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                        <div style={{ background: "#F3F4F6", borderBottom: "1px solid #E5E7EB", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, background: "#E5E7EB", color: "#374151", padding: "2px 8px", borderRadius: 6, textTransform: "uppercase" }}>ID: {c._id.slice(-6)}</span>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>₹{c.price.toLocaleString()}</span>
+                        </div>
+                        <div style={{ padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
+                          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: "0 0 6px" }}>{c.title}</h3>
+                          <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px", flex: 1, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.description}</p>
+                          <div style={{ fontSize: 12, color: "#4B5563", marginBottom: 18 }}>
+                            Instructor: <strong>{c.firstName} {c.lastName}</strong>
+                          </div>
+                          <button
+                            onClick={() => startEditCourse(c)}
+                            style={{
+                              background: "#F3F4F6",
+                              color: "#1F2937",
+                              border: "1px solid #D1D5DB",
+                              borderRadius: 8,
+                              padding: "10px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.2s",
+                              textAlign: "center"
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#E5E7EB"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "#F3F4F6"; }}
+                          >
+                            📝 Edit Course
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Create / Edit Course Modal */}
+        {isFormOpen && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(17, 24, 39, 0.6)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
+            <div style={{ background: "#ffffff", borderRadius: 20, padding: "40px 32px", width: "100%", maxWidth: 520, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", position: "relative" }}>
+              <button
+                onClick={() => setIsFormOpen(false)}
+                style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%", transition: "background 0.2s" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#F3F4F6"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+              >
+                ✕
+              </button>
+              
+              <div style={{ textAlign: "center", marginBottom: 28 }}>
+                <h2 style={{ fontSize: 24, fontWeight: 900, color: "#111827", margin: "0 0 6px" }}>
+                  {isEditMode ? "Edit Course Specifications" : "Create a New Course"}
+                </h2>
+                <p style={{ fontSize: 14, color: "#6B7280", margin: 0 }}>Configure Course information for student publication</p>
+              </div>
+
+              <form onSubmit={handleCourseSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Course Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., Advanced JavaScript Patterns"
+                    value={courseForm.title}
+                    onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
+                    style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Course Description</label>
+                  <textarea
+                    required
+                    rows="3"
+                    placeholder="Provide a comprehensive summary of syllabus, requirements, and outcomes..."
+                    value={courseForm.description}
+                    onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
+                    style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Price (INR)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g., 2999"
+                      value={courseForm.price}
+                      onChange={(e) => setCourseForm({ ...courseForm, price: e.target.value })}
+                      style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Instructor First Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Jane"
+                      value={courseForm.firstName}
+                      onChange={(e) => setCourseForm({ ...courseForm, firstName: e.target.value })}
+                      style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4B5563", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Instructor Last Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Smith"
+                      value={courseForm.lastName}
+                      onChange={(e) => setCourseForm({ ...courseForm, lastName: e.target.value })}
+                      style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    width: "100%",
+                    background: "#0056D2",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "14px",
+                    fontSize: 15,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0, 86, 210, 0.24)",
+                    marginTop: 8
+                  }}
+                >
+                  {isEditMode ? "Save Changes" : "Publish Course"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", background: "#F9FAFB", minHeight: "100vh" }}>
 

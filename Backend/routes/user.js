@@ -73,7 +73,13 @@ userRouter.post("/signin", async function(req, res){
                     role: role
                 },JWT_USER_PASSWORD)    
             res.json({
-                token: token
+                token: token,
+                user: {
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    role: user.role
+                }
             });
             } else {
                 res.status(403).json({

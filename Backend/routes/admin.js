@@ -86,7 +86,13 @@ adminRoutes.post("/signin", async function(req,res){
                     role: role
                 }, JWT_ADMIN_PASSWORD);
                 return res.json({
-                    token : token
+                    token: token,
+                    user: {
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        role: user.role || "Admin"
+                    }
                 });
             }
         }
